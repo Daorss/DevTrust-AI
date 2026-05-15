@@ -5,7 +5,6 @@ import HeroSection from "./components/HeroSection";
 import SponsorBar from "./components/SponsorBar";
 import FeaturesGrid from "./components/FeaturesGrid";
 import Footer from "./components/Footer";
-import ResultPage from "./components/ResultPage";
 import WorkflowSection from "./components/WorkflowSection";
 
 interface AnalysisInput {
