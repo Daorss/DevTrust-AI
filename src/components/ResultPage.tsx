@@ -19,11 +19,11 @@ interface JobFitResult {
 }
 
 interface AnalysisResult {
-  totalScore: number;
-  verdict: "Legitimate" | "Suspicious" | "Likely Bot";
-  aiSummary: string;
+  totalScore?: number;
+  verdict?: "Legitimate" | "Suspicious" | "Likely Bot";
+  aiSummary?: string;
   jobFit?: JobFitResult;
-  breakdown: {
+  breakdown?: {
     accountAge: ScoreBreakdown;
     profileCompleteness: ScoreBreakdown;
     followerCredibility: ScoreBreakdown;
@@ -31,7 +31,7 @@ interface AnalysisResult {
     activityPattern: ScoreBreakdown;
     originalContent: ScoreBreakdown;
   };
-  meta: {
+  meta?: {
     username: string;
     avatarUrl: string;
     displayName: string;
@@ -59,7 +59,7 @@ function parseUsername(input: string): string {
   return input.replace("@", "").trim();
 }
 
-const VERDICT_COLOR: Record<AnalysisResult["verdict"], string> = {
+const VERDICT_COLOR: Record<"Legitimate" | "Suspicious" | "Likely Bot", string> = {
   Legitimate: "text-green-400",
   Suspicious: "text-yellow-400",
   "Likely Bot": "text-red-400",
@@ -120,7 +120,27 @@ export default function ResultPage({
       if (msg.type === "info") {
         setProgress(msg.message ?? "");
       } else if (msg.type === "result") {
-        setData(msg as unknown as AnalysisResult);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw = msg as any;
+        const jobFit: JobFitResult | undefined =
+          raw.match_score !== undefined
+            ? {
+                matchScore: raw.match_score,
+                matchingSkills: raw.matching_skills ?? [],
+                missingSkills: raw.missing_skills ?? [],
+                experienceEvidence: raw.experience_evidence ?? "",
+                seniorityVerdict: raw.seniority_verdict,
+                verdict: raw.verdict,
+              }
+            : raw.jobFit;
+        setData({
+          totalScore: raw.totalScore,
+          verdict: raw.trust_verdict ?? raw.verdict_trust,
+          aiSummary: raw.aiSummary,
+          meta: raw.meta,
+          breakdown: raw.breakdown,
+          jobFit,
+        });
         es.close();
       } else if (msg.type === "error") {
         setError(msg.message ?? "Analysis failed.");
@@ -137,7 +157,7 @@ export default function ResultPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, jobDescription]);
 
-  const scorePercent = data ? Math.round((data.totalScore / 100) * 100) : 0;
+  const scorePercent = data?.totalScore != null ? Math.round((data.totalScore / 100) * 100) : 0;
   const circumference = 2 * Math.PI * 54;
 
   return (
@@ -208,164 +228,172 @@ export default function ResultPage({
             animate="visible"
           >
             {/* Score ring */}
-            <motion.section
-              variants={fadeUp}
-              className="relative flex items-center justify-center"
-            >
-              <div className="relative w-72 h-72 flex items-center justify-center">
-                <svg
-                  className="absolute inset-0 rotate-[-90deg]"
-                  viewBox="0 0 120 120"
-                >
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="54"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    className="text-surface-variant opacity-20"
-                  />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="54"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    className="text-primary transition-all duration-1000"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={
-                      circumference - (scorePercent / 100) * circumference
-                    }
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="relative z-10 flex flex-col items-center">
-                  <span
-                    className="font-sans text-display-lg text-on-surface"
-                    style={{
-                      fontWeight: 700,
-                      letterSpacing: "-0.04em",
-                      textShadow: "0 0 15px rgba(174,198,255,0.4)",
-                    }}
+            {data.totalScore != null && data.verdict && (
+              <motion.section
+                variants={fadeUp}
+                className="relative flex items-center justify-center"
+              >
+                <div className="relative w-72 h-72 flex items-center justify-center">
+                  <svg
+                    className="absolute inset-0 rotate-[-90deg]"
+                    viewBox="0 0 120 120"
                   >
-                    {data.totalScore}
-                  </span>
-                  <span className="font-mono text-label-sm text-primary tracking-[0.2em] font-bold mt-xs">
-                    TRUST SCORE
-                  </span>
-                  <span
-                    className={`font-mono text-label-sm font-bold mt-xs ${VERDICT_COLOR[data.verdict]}`}
-                  >
-                    {data.verdict.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            </motion.section>
-
-            {/* Profile card */}
-            <motion.section
-              variants={fadeUp}
-              className="glass-surface rounded-xl p-lg flex items-center gap-lg w-full max-w-4xl"
-            >
-              <img
-                src={data.meta.avatarUrl}
-                alt={data.meta.username}
-                className="w-16 h-16 rounded-full border-2 border-primary/30 flex-shrink-0"
-              />
-              <div className="flex flex-col gap-xs">
-                <span className="font-sans text-headline-sm text-on-surface font-semibold">
-                  {data.meta.displayName}
-                </span>
-                <span className="font-mono text-label-sm text-outline">
-                  @{data.meta.username}
-                </span>
-              </div>
-              <div className="ml-auto flex gap-xl text-center">
-                {[
-                  { value: data.meta.followers, label: "Followers" },
-                  { value: data.meta.following, label: "Following" },
-                  { value: data.meta.publicRepos, label: "Repos" },
-                ].map(({ value, label }) => (
-                  <div key={label}>
-                    <div className="font-sans text-headline-sm text-on-surface">
-                      {value}
-                    </div>
-                    <div className="font-mono text-label-sm text-outline">
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.section>
-
-            {/* Score breakdown */}
-            <motion.section
-              variants={stagger}
-              className="grid grid-cols-2 md:grid-cols-3 gap-lg w-full max-w-4xl"
-            >
-              {Object.entries(data.breakdown).map(([key, item]) => {
-                const pct = Math.round((item.score / item.max) * 100);
-                return (
-                  <motion.div
-                    key={key}
-                    variants={fadeUp}
-                    className="glass-surface rounded-xl p-lg flex flex-col gap-sm hover:bg-white/5 transition-all"
-                  >
-                    <div className="flex justify-between items-center text-outline">
-                      <span className="font-mono text-label-sm uppercase tracking-wider">
-                        {item.label}
-                      </span>
-                      <Icon
-                        name={BREAKDOWN_ICONS[key] ?? "check"}
-                        size="16px"
-                      />
-                    </div>
-                    <div className="font-sans text-headline-md text-on-surface">
-                      {item.score}
-                      <span className="text-body-md text-outline">
-                        /{item.max}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p className="font-mono text-code-md text-on-surface-variant">
-                      {item.detail}
-                    </p>
-                  </motion.div>
-                );
-              })}
-            </motion.section>
-
-            {/* Gemini AI summary */}
-            <motion.section variants={fadeUp} className="w-full max-w-4xl">
-              <div className="glass-surface ai-border-glow rounded-xl p-xl flex flex-col gap-md">
-                <div className="flex items-center justify-between flex-wrap gap-md">
-                  <div className="flex items-center gap-md">
-                    <div className="bg-primary/10 p-base rounded-lg border border-primary/20">
-                      <Icon name="psychology" className="text-primary" />
-                    </div>
-                    <h2 className="font-sans text-headline-md text-on-surface font-semibold">
-                      Gemini AI Audit
-                    </h2>
-                  </div>
-                  <div className="flex items-center gap-xs px-sm py-xs bg-surface-container-high rounded-full border border-outline-variant/30">
-                    <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                    <span className="font-mono text-label-sm text-on-surface-variant">
-                      Live Intelligence
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="54"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      className="text-surface-variant opacity-20"
+                    />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="54"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      className="text-primary transition-all duration-1000"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={
+                        circumference - (scorePercent / 100) * circumference
+                      }
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="relative z-10 flex flex-col items-center">
+                    <span
+                      className="font-sans text-display-lg text-on-surface"
+                      style={{
+                        fontWeight: 700,
+                        letterSpacing: "-0.04em",
+                        textShadow: "0 0 15px rgba(174,198,255,0.4)",
+                      }}
+                    >
+                      {data.totalScore}
+                    </span>
+                    <span className="font-mono text-label-sm text-primary tracking-[0.2em] font-bold mt-xs">
+                      TRUST SCORE
+                    </span>
+                    <span
+                      className={`font-mono text-label-sm font-bold mt-xs ${VERDICT_COLOR[data.verdict]}`}
+                    >
+                      {data.verdict.toUpperCase()}
                     </span>
                   </div>
                 </div>
-                <p className="font-sans text-body-lg text-on-surface-variant leading-relaxed">
-                  {data.aiSummary}
-                </p>
-              </div>
-            </motion.section>
+              </motion.section>
+            )}
+
+            {/* Profile card */}
+            {data.meta && (
+              <motion.section
+                variants={fadeUp}
+                className="glass-surface rounded-xl p-lg flex items-center gap-lg w-full max-w-4xl"
+              >
+                <img
+                  src={data.meta.avatarUrl}
+                  alt={data.meta.username}
+                  className="w-16 h-16 rounded-full border-2 border-primary/30 flex-shrink-0"
+                />
+                <div className="flex flex-col gap-xs">
+                  <span className="font-sans text-headline-sm text-on-surface font-semibold">
+                    {data.meta.displayName}
+                  </span>
+                  <span className="font-mono text-label-sm text-outline">
+                    @{data.meta.username}
+                  </span>
+                </div>
+                <div className="ml-auto flex gap-xl text-center">
+                  {[
+                    { value: data.meta.followers, label: "Followers" },
+                    { value: data.meta.following, label: "Following" },
+                    { value: data.meta.publicRepos, label: "Repos" },
+                  ].map(({ value, label }) => (
+                    <div key={label}>
+                      <div className="font-sans text-headline-sm text-on-surface">
+                        {value}
+                      </div>
+                      <div className="font-mono text-label-sm text-outline">
+                        {label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.section>
+            )}
+
+            {/* Score breakdown */}
+            {data.breakdown && (
+              <motion.section
+                variants={stagger}
+                className="grid grid-cols-2 md:grid-cols-3 gap-lg w-full max-w-4xl"
+              >
+                {Object.entries(data.breakdown).map(([key, item]) => {
+                  const pct = Math.round((item.score / item.max) * 100);
+                  return (
+                    <motion.div
+                      key={key}
+                      variants={fadeUp}
+                      className="glass-surface rounded-xl p-lg flex flex-col gap-sm hover:bg-white/5 transition-all"
+                    >
+                      <div className="flex justify-between items-center text-outline">
+                        <span className="font-mono text-label-sm uppercase tracking-wider">
+                          {item.label}
+                        </span>
+                        <Icon
+                          name={BREAKDOWN_ICONS[key] ?? "check"}
+                          size="16px"
+                        />
+                      </div>
+                      <div className="font-sans text-headline-md text-on-surface">
+                        {item.score}
+                        <span className="text-body-md text-outline">
+                          /{item.max}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-700"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <p className="font-mono text-code-md text-on-surface-variant">
+                        {item.detail}
+                      </p>
+                    </motion.div>
+                  );
+                })}
+              </motion.section>
+            )}
+
+            {/* Gemini AI summary */}
+            {data.aiSummary && (
+              <motion.section variants={fadeUp} className="w-full max-w-4xl">
+                <div className="glass-surface ai-border-glow rounded-xl p-xl flex flex-col gap-md">
+                  <div className="flex items-center justify-between flex-wrap gap-md">
+                    <div className="flex items-center gap-md">
+                      <div className="bg-primary/10 p-base rounded-lg border border-primary/20">
+                        <Icon name="psychology" className="text-primary" />
+                      </div>
+                      <h2 className="font-sans text-headline-md text-on-surface font-semibold">
+                        Gemini AI Audit
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-xs px-sm py-xs bg-surface-container-high rounded-full border border-outline-variant/30">
+                      <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                      <span className="font-mono text-label-sm text-on-surface-variant">
+                        Live Intelligence
+                      </span>
+                    </div>
+                  </div>
+                  <p className="font-sans text-body-lg text-on-surface-variant leading-relaxed">
+                    {data.aiSummary}
+                  </p>
+                </div>
+              </motion.section>
+            )}
 
             {/* Job fit */}
             {data.jobFit && (
@@ -484,13 +512,15 @@ export default function ResultPage({
               variants={fadeUp}
               className="flex flex-wrap items-center justify-center gap-xl opacity-40 hover:opacity-100 transition-opacity"
             >
-              <div className="flex items-center gap-sm">
-                <Icon name="schedule" size="16px" />
-                <span className="font-mono text-label-sm">
-                  Account created:{" "}
-                  {new Date(data.meta.accountCreated).toLocaleDateString()}
-                </span>
-              </div>
+              {data.meta && (
+                <div className="flex items-center gap-sm">
+                  <Icon name="schedule" size="16px" />
+                  <span className="font-mono text-label-sm">
+                    Account created:{" "}
+                    {new Date(data.meta.accountCreated).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center gap-sm">
                 <Icon name="cloud_done" size="16px" />
                 <span className="font-mono text-label-sm">
