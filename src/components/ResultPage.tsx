@@ -122,24 +122,13 @@ export default function ResultPage({
       } else if (msg.type === "result") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const raw = msg as any;
-        const jobFit: JobFitResult | undefined =
-          raw.match_score !== undefined
-            ? {
-                matchScore: raw.match_score,
-                matchingSkills: raw.matching_skills ?? [],
-                missingSkills: raw.missing_skills ?? [],
-                experienceEvidence: raw.experience_evidence ?? "",
-                seniorityVerdict: raw.seniority_verdict,
-                verdict: raw.verdict,
-              }
-            : raw.jobFit;
         setData({
           totalScore: raw.totalScore,
-          verdict: raw.trust_verdict ?? raw.verdict_trust,
+          verdict: raw.verdict,
           aiSummary: raw.aiSummary,
           meta: raw.meta,
           breakdown: raw.breakdown,
-          jobFit,
+          jobFit: raw.jobFit,
         });
         es.close();
       } else if (msg.type === "error") {
