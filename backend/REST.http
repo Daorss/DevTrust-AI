@@ -1,0 +1,25 @@
+# DevTrust AI — API Tests
+# Requires VS Code REST Client extension
+
+@baseUrl = http://localhost:3000
+
+# ── Change these two variables to test different profiles ──
+@username = Daorss
+@jobDescription = Junior Full Stack Developer with experience in building web applications using JavaScript, React.js, Node.js, MySQL, and MongoDB. Skilled in developing responsive user interfaces, backend APIs, database-driven features, and basic CRUD functionality. Has worked on projects such as aviation management and video sharing systems, showing practical experience with full-stack development. Comfortable using GitHub, connecting frontend and backend systems, debugging issues, and improving application functionality.
+
+
+### Trust score only (no job description)
+GET {{baseUrl}}/analyze?githubUsername={{username}}
+Accept: text/event-stream
+
+###
+
+### Trust score + job fit analysis
+GET {{baseUrl}}/analyze?githubUsername={{username}}&jobDescription={{jobDescription}}
+Accept: text/event-stream
+
+###
+
+### Error case — non-existent user
+GET {{baseUrl}}/analyze?githubUsername=this-user-does-not-exist-xyz123
+Accept: text/event-stream

@@ -22,7 +22,12 @@ export class AnalyzeService {
   private progress$: Subject<MessageResult> | undefined;
 
   constructor() {
-    this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0,
+      },
+    });
   }
 
   analyzeProfile(
@@ -130,12 +135,11 @@ export class AnalyzeService {
     const analysisPrompt = `
     You are a Senior Technical Lead. Compare the following provided Codebase with the Job Description.
 
-    CRITICAL EVALUATION RULES:
-    - Do not make assumptions beyond the provided code and JD. If the code doesn't show it, say it's not evident.
-    - Required skills matched must weight more than nice-to-have skills. More precisely in 5/1 ratio.
+    EVALUATION RULES:
+    - Only evaluate based on what is present in the provided code and JD. Do not invent skills that have no trace in either.
+    - Libraries, ORMs, adapters, and dependencies are valid evidence of underlying technology knowledge. For example: an ORM configured for MySQL counts as MySQL experience; a cloud storage SDK counts as cloud experience; a testing library counts as testing experience. Look in package.json and imports, not just business logic.
     - Be strict in your analysis. If the code only shows basic usage of a required skill, don't count it as a full match.
     - For seniority, look for patterns like: leadership in code (e.g. complex architecture, design patterns), breadth of technologies, and depth in required skills.
-    - If nice-to-have skills are present, mention them in the verdict but don't count them in the match score.
     - In evidence output, do not mention file names or line numbers, just describe the example in a way that shows you understand it.
 
     [JOB DESCRIPTION]
@@ -145,16 +149,43 @@ export class AnalyzeService {
     ${repoContent}
 
     [RETURN ONLY RAW JSON]
-    Provide a Gap Analysis ONLY in JSON format (no other text or markdown) with the following fields:
-    1. "match_score": (Percentage 0-100)
-    2. "matching_skills": [List of skills found in code that are in the JD]
-    3. "missing_skills": [List of requirements from JD not found in the code]
-    4. "experience_evidence": "For each matching skill, provide a specific example from the code that proves they can do the job. Do not mention file names, line numbers or language/technology related buzzwords. Repo name is acceptable to add context."
-    5. "seniority_verdict": "Junior, Mid, or Senior based on patterns"
-    6. "verdict": "Short summary of why they are or aren't a good fit. Please do use as least as possible language or technology related buzzwords."
+    Follow these steps IN ORDER and return only the final JSON:
+
+    STEP 1 — Extract all skills from the JD into two lists:
+      - required_skills: skills explicitly required or strongly implied
+      - nice_to_have_skills: skills listed as optional or preferred
+
+    STEP 2 — For each skill in both lists, check whether the code evidences it (yes/no).
+      - Skill names must be SHORT (1-4 words). Never copy full sentences from the JD.
+      - Use these to populate matching_skills (found) and missing_skills (not found).
+      - Only include required_skills in missing_skills. Nice-to-have gaps are not missing skills.
+
+    STEP 3 — Compute match_score using this exact formula:
+      - required_matched = number of required_skills found in code
+      - required_total = total number of required_skills
+      - nicetohave_matched = number of nice_to_have_skills found in code
+      - nicetohave_total = total number of nice_to_have_skills (use 0 if none)
+      - weighted_score = (required_matched * 5 + nicetohave_matched * 1) / (required_total * 5 + nicetohave_total * 1)
+      - match_score = round(weighted_score * 100)
+
+    Return this JSON shape:
+    {
+      "match_score": <computed number>,
+      "matching_skills": [<short names of ALL matched skills, required + nice-to-have>],
+      "missing_skills": [<short names of unmatched REQUIRED skills only>],
+      "experience_evidence": "<for each matching skill, a specific example from the code proving competence. No file names, line numbers, or tech buzzwords. Repo name is fine for context.>",
+      "seniority_verdict": "<Junior, Mid, or Senior based on code patterns>",
+      "verdict": "<short summary of fit. Avoid tech buzzwords.>"
+    }
   `;
 
-    const result = await this.model.generateContent(analysisPrompt);
+    const result = await this.model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: analysisPrompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0,
+      },
+    });
 
     console.log('\n ✅ Analysis finished...');
 
@@ -164,6 +195,8 @@ export class AnalyzeService {
         .text()
         .replace(/```json|```/g, '')
         .trim();
+
+      console.log(sanitized);
 
       const messageResult: MessageResult = {
         data: {

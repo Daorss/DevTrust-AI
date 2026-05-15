@@ -15,15 +15,15 @@ interface AnalysisInput {
 export default function App() {
   const [input, setInput] = useState<AnalysisInput | null>(null);
 
-  if (input !== null) {
-    return (
-      <ResultPage
-        input={input.url}
-        jobDescription={input.jobDescription}
-        onBack={() => setInput(null)}
-      />
-    );
-  }
+  // if (input !== null) {
+  //   return (
+  //     <ResultPage
+  //       input={input.url}
+  //       jobDescription={input.jobDescription}
+  //       onBack={() => setInput(null)}
+  //     />
+  //   );
+  // }
 
   return (
     <>
