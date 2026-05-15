@@ -34,7 +34,7 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
   }
 
   return (
-    <section className="min-h-[1024px] flex flex-col items-center justify-center relative overflow-hidden hero-gradient px-gutter">
+    <section className="min-h-256 flex flex-col items-center justify-center relative overflow-hidden hero-gradient px-gutter">
       {/* Ambient blobs */}
       <div className="absolute inset-0 z-0 opacity-30 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 blur-[120px] rounded-full" />
@@ -53,7 +53,7 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
           style={{ letterSpacing: "-0.04em", fontWeight: 700 }}
         >
           Look up GitHub profile{" "}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+          <span className="text-transparent bg-clip-text bg-linear-to-r from-primary to-secondary">
             legitimacy
           </span>
         </motion.h1>

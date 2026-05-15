@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 import Navbar from "./components/Navbar";
+import ResultPage from "./components/ResultPage";
 import HeroSection from "./components/HeroSection";
 import SponsorBar from "./components/SponsorBar";
 import FeaturesGrid from "./components/FeaturesGrid";
