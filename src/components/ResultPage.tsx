@@ -109,7 +109,7 @@ export default function ResultPage({
     if (jobDescription) params.set("jobDescription", jobDescription);
 
     const es = new EventSource(
-      `http://localhost:3000/analyze?${params.toString()}`,
+      `${import.meta.env.VITE_API_BASE_URL}/analyze?${params.toString()}`,
     );
 
     es.onmessage = (event: MessageEvent<string>) => {
