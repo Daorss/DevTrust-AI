@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import Icon from "./Icon";
 
 interface Feature {
@@ -63,9 +64,24 @@ const FEATURES: Feature[] = [
   },
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: -20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" as const },
+  },
+};
+
+const cardGrid = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
 function FeatureCard({ feature }: { feature: Feature }) {
   return (
-    <div
+    <motion.div
+      variants={fadeUp}
       className={`glass-card p-lg rounded-xl flex flex-col gap-md hover:shadow-[0_0_30px_rgba(174,198,255,0.1)] transition-all relative overflow-hidden ${
         feature.aiCore ? "border-primary/20 bg-primary/5" : ""
       }`}
@@ -75,29 +91,27 @@ function FeatureCard({ feature }: { feature: Feature }) {
           AI CORE
         </div>
       )}
-      <div
-        className={`w-12 h-12 ${feature.iconBg} rounded-lg flex items-center justify-center`}
-      >
-        <Icon
-          name={feature.icon}
-          className={feature.iconColor}
-          fill={feature.fill}
-        />
+      <div className={`w-12 h-12 ${feature.iconBg} rounded-lg flex items-center justify-center`}>
+        <Icon name={feature.icon} className={feature.iconColor} fill={feature.fill} />
       </div>
       <h3 className="font-sans text-headline-md font-semibold text-on-surface">
         {feature.title}
       </h3>
-      <p className="font-sans text-body-md text-on-surface-variant">
-        {feature.description}
-      </p>
-    </div>
+      <p className="font-sans text-body-md text-on-surface-variant">{feature.description}</p>
+    </motion.div>
   );
 }
 
 export default function FeaturesGrid() {
   return (
     <section className="py-xxl max-w-[1280px] mx-auto px-gutter">
-      <div className="text-center mb-xl">
+      <motion.div
+        className="text-center mb-xl"
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-80px" }}
+      >
         <h2
           className="font-sans text-headline-lg font-semibold text-on-surface"
           style={{ letterSpacing: "-0.02em" }}
@@ -105,16 +119,22 @@ export default function FeaturesGrid() {
           Comprehensive Trust Intelligence
         </h2>
         <p className="font-sans text-on-surface-variant mx-auto mt-base">
-          Our multi-layered analysis engine scans over 40 distinct metrics to
-          verify the legitimacy of any open-source project.
+          Our multi-layered analysis engine scans over 40 distinct metrics to verify the
+          legitimacy of any open-source project.
         </p>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-lg">
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-3 gap-lg"
+        variants={cardGrid}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-60px" }}
+      >
         {FEATURES.map((feature) => (
           <FeatureCard key={feature.title} feature={feature} />
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 }

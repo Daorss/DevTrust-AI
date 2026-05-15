@@ -1,14 +1,29 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import Icon from "./Icon";
 
 interface HeroSectionProps {
   onAnalyze: (url: string, jobDescription?: string) => void;
 }
 
+const container = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: -20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" as const },
+  },
+};
+
 export default function HeroSection({ onAnalyze }: HeroSectionProps) {
   const [url, setUrl] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [showJd, setShowJd] = useState(true);
+  const [showJd] = useState(true);
 
   function handleAnalyze() {
     if (url.trim()) onAnalyze(url.trim(), jobDescription.trim() || undefined);
@@ -26,11 +41,14 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary-container/20 blur-[120px] rounded-full" />
       </div>
 
-      <div className="relative z-10 text-center max-w-4xl mx-auto space-y-lg">
-        {/* Live badge */}
-
-        {/* Headline */}
-        <h1
+      <motion.div
+        className="relative z-10 text-center max-w-4xl mx-auto space-y-lg"
+        variants={container}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.h1
+          variants={fadeUp}
           className="font-sans text-display-lg text-on-surface leading-[1.1]"
           style={{ letterSpacing: "-0.04em", fontWeight: 700 }}
         >
@@ -38,17 +56,21 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
             legitimacy
           </span>
-        </h1>
+        </motion.h1>
 
-        {/* Subtitle */}
-        <p className="font-sans text-body-lg text-on-surface-variant max-w-2xl mx-auto">
+        <motion.p
+          variants={fadeUp}
+          className="font-sans text-body-lg text-on-surface-variant max-w-2xl mx-auto"
+        >
           Verify trust signals, detect supply chain risks, and analyze
           contribution patterns in seconds with our weighted intelligence
           engine.
-        </p>
+        </motion.p>
 
-        {/* Search bar */}
-        <div className="relative max-w-2xl mx-auto mt-xxl group">
+        <motion.div
+          variants={fadeUp}
+          className="relative max-w-2xl mx-auto mt-xxl group"
+        >
           <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-secondary/30 rounded-full blur opacity-50 group-focus-within:opacity-100 transition duration-500" />
           <div className="relative flex items-center bg-surface-dim/80 backdrop-blur-md rounded-full p-2 border border-outline-variant/40">
             <Icon name="search" className="ml-lg text-outline flex-shrink-0" />
@@ -67,15 +89,10 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
               Analyze
             </button>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Job description toggle */}
-        <div className="max-w-2xl mx-auto text-left">
-          <button
-            // onClick={() => setShowJd((v) => !v)}
-            className="flex items-center gap-xs font-mono text-label-sm text-outline hover:text-primary transition-colors"
-          >
-            {/* <Icon name={showJd ? "expand_less" : "expand_more"} size="18px" /> */}
+        <motion.div variants={fadeUp} className="max-w-2xl mx-auto text-left">
+          <button className="flex items-center gap-xs font-mono text-label-sm text-outline hover:text-primary transition-colors">
             Job Description
           </button>
 
@@ -91,10 +108,12 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
               />
             </div>
           )}
-        </div>
+        </motion.div>
 
-        {/* Trust badges */}
-        <div className="flex flex-wrap justify-center gap-lg pt-lg text-outline font-mono text-label-sm">
+        <motion.div
+          variants={fadeUp}
+          className="flex flex-wrap justify-center gap-lg pt-lg text-outline font-mono text-label-sm"
+        >
           {(
             [
               "Legitimacy Check",
@@ -107,8 +126,8 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
               {label}
             </span>
           ))}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </section>
   );
 }

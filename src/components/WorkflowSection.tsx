@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import Icon from "./Icon";
 
 interface Step {
@@ -45,25 +46,52 @@ const STEPS: Step[] = [
   },
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: -20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" as const },
+  },
+};
+
+const staggerSteps = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
+
 export default function WorkflowSection() {
   return (
     <section className="py-xxl max-w-[1280px] mx-auto px-gutter">
-      <div className="text-center mb-xl">
+      <motion.div
+        className="text-center mb-xl"
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-80px" }}
+      >
         <h2
           className="font-sans text-headline-lg font-semibold text-on-surface"
           style={{ letterSpacing: "-0.02em" }}
         >
           Analysis Workflow
         </h2>
-      </div>
+      </motion.div>
 
-      <div className="relative flex flex-col md:flex-row justify-between items-center gap-xl md:gap-0">
+      <motion.div
+        className="relative flex flex-col md:flex-row justify-between items-center gap-xl md:gap-0"
+        variants={staggerSteps}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: "-60px" }}
+      >
         {/* Connector line (desktop only) */}
         <div className="absolute top-8 left-0 w-full h-px bg-gradient-to-r from-transparent via-outline-variant/30 to-transparent hidden md:block -z-10" />
 
         {STEPS.map((step, i) => (
-          <div
+          <motion.div
             key={step.title}
+            variants={fadeUp}
             className="flex flex-col items-center gap-md text-center max-w-[200px]"
           >
             <div
@@ -77,16 +105,12 @@ export default function WorkflowSection() {
               </div>
             </div>
             <div className="space-y-xs">
-              <h4 className="font-sans text-body-md font-bold text-on-surface">
-                {step.title}
-              </h4>
-              <p className="font-mono text-label-sm text-on-surface-variant">
-                {step.description}
-              </p>
+              <h4 className="font-sans text-body-md font-bold text-on-surface">{step.title}</h4>
+              <p className="font-mono text-label-sm text-on-surface-variant">{step.description}</p>
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </section>
   );
 }
