@@ -5,6 +5,8 @@ import { Octokit } from '@octokit/rest';
 import { runCli } from 'repomix';
 import { Repository } from './models/repository';
 import 'dotenv/config';
+import { AnalysisResponse, MessageResult } from './models/analysisResponse';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -17,36 +19,84 @@ console.log(
 @Injectable()
 export class AnalyzeService {
   private model: GenerativeModel;
+  private progress$: Subject<MessageResult> | undefined;
 
   constructor() {
     this.model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   }
 
-  async analyzeProfile(
+  analyzeProfile(
     githubUsername: string,
     jobDescription: string,
-  ): Promise<string> {
+  ): Observable<MessageResult> {
+    this.progress$ = new BehaviorSubject<MessageResult>({
+      data: {
+        type: 'info',
+        message: '🔍 Analyzing Job Description...',
+      },
+    });
+
+    this.runAnalysingPipeline(githubUsername, jobDescription);
+
+    return this.progress$.asObservable();
+  }
+
+  private async runAnalysingPipeline(
+    githubUsername: string,
+    jobDescription: string,
+  ) {
+    this.progress$?.next({
+      data: {
+        type: 'info',
+        message: '🔍 Analyzing Job Description...',
+      },
+    });
+
     const languages = await this.extractRequiredLanguages(jobDescription);
     console.log(`\n Identified required languages: ${languages.join(', ')}`);
 
+    this.progress$?.next({
+      data: {
+        type: 'info',
+        message: '🕵️‍♂️ Querying Github for repositories...',
+      },
+    });
     const repos = await this.getRelevantRepos(githubUsername, languages);
 
     if (repos.length === 0) {
       console.log('\n No matching repositories found for the required stack.');
-      return 'No matching repositories found for the required stack.';
+
+      this.progress$?.next({
+        data: {
+          type: 'info',
+          message: '🫤 No matching repositories found for the required stack.',
+        },
+      });
+
+      return;
     }
 
     console.log(`\n Found ${repos.length} repositories.`);
 
-    const result = await this.analyzeRepos(repos, jobDescription);
-    return result;
+    const analysisResult = await this.analyzeRepos(repos, jobDescription);
+
+    this.progress$?.next(analysisResult);
   }
 
   private async analyzeRepos(
     repos: Repository[],
     jobDescription: string,
-  ): Promise<string> {
+  ): Promise<MessageResult> {
     let repoContent = '';
+
+    console.log(`\n 📦 Packing repos...`);
+
+    this.progress$?.next({
+      data: {
+        type: 'info',
+        message: '📦 Packing Repositories...',
+      },
+    });
 
     for (const repo of repos) {
       const tempOutput = `packed-${repo.name}.txt`;
@@ -66,6 +116,13 @@ export class AnalyzeService {
       repoContent += fs.readFileSync(tempOutput, 'utf-8');
       fs.unlinkSync(tempOutput);
     }
+
+    this.progress$?.next({
+      data: {
+        type: 'info',
+        message: '🧠 Analyzing with AI...',
+      },
+    });
 
     console.log('\n 🧠 Analyzing with AI...');
 
@@ -87,7 +144,8 @@ export class AnalyzeService {
     [DEVELOPER GITHUB CONTENT]
     ${repoContent}
 
-    Provide a Gap Analysis ONLY in JSON format:
+    [RETURN ONLY RAW JSON]
+    Provide a Gap Analysis ONLY in JSON format (no other text or markdown) with the following fields:
     1. "match_score": (Percentage 0-100)
     2. "matching_skills": [List of skills found in code that are in the JD]
     3. "missing_skills": [List of requirements from JD not found in the code]
@@ -96,10 +154,36 @@ export class AnalyzeService {
     6. "verdict": "Short summary of why they are or aren't a good fit. Please do use as least as possible language or technology related buzzwords."
   `;
 
+    const result = await this.model.generateContent(analysisPrompt);
+
     console.log('\n ✅ Analysis finished...');
 
-    const result = await this.model.generateContent(analysisPrompt);
-    return result.response.text();
+    try {
+      // Remove any potential markdown backticks if the model ignores generationConfig
+      const sanitized = result.response
+        .text()
+        .replace(/```json|```/g, '')
+        .trim();
+
+      const messageResult: MessageResult = {
+        data: {
+          type: 'result',
+          ...JSON.parse(sanitized),
+        } as AnalysisResponse,
+      };
+      return messageResult;
+    } catch {
+      console.error('Failed to parse AI JSON:', result);
+
+      this.progress$?.next({
+        data: {
+          type: 'error',
+          message: '❌ Failed to parse AI JSON',
+        },
+      });
+
+      throw new Error('AI returned malformed data. Please try again.');
+    }
   }
 
   private async getRelevantRepos(
@@ -135,6 +219,13 @@ export class AnalyzeService {
       }));
     } catch (error) {
       console.error('Failed to fetch repos:', error);
+
+      this.progress$?.next({
+        data: {
+          type: 'error',
+          message: '❌ Failed to fetch repos',
+        },
+      });
       return [];
     }
   }
