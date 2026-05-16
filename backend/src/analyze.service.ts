@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { GenerativeModel, GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import { Injectable } from '@nestjs/common';
@@ -70,11 +71,7 @@ export class AnalyzeService {
         data: { type: 'info', message: '🧠 Generating trust analysis...' },
       });
 
-      const aiSummary = await this.generateAiSummary(
-        user,
-        totalScore,
-        verdict,
-      );
+      const aiSummary = await this.generateAiSummary(user, totalScore, verdict);
 
       const meta: AnalysisResultResponse['meta'] = {
         username: user.login,
@@ -94,9 +91,10 @@ export class AnalyzeService {
           data: { type: 'info', message: '🔍 Analyzing job description...' },
         });
 
-        const languages = await this.extractRequiredLanguages(jobDescription);
+        const { languages, tools } =
+          await this.extractRequiredSkills(jobDescription);
         console.log(
-          `\n Identified required languages: ${languages.join(', ')}`,
+          `\n Identified languages: ${languages.join(', ')} | tools: ${tools.join(', ')}`,
         );
 
         this.progress$?.next({
@@ -109,6 +107,7 @@ export class AnalyzeService {
         const relevantRepos = await this.getRelevantRepos(
           githubUsername,
           languages,
+          tools,
         );
 
         if (relevantRepos.length === 0) {
@@ -144,7 +143,10 @@ export class AnalyzeService {
     } catch (error) {
       console.error('Pipeline error:', error);
       this.progress$?.next({
-        data: { type: 'error', message: '❌ Analysis failed. Please try again.' },
+        data: {
+          type: 'error',
+          message: '❌ Analysis failed. Please try again.',
+        },
       });
       this.progress$?.complete();
     }
@@ -216,8 +218,7 @@ export class AnalyzeService {
     else if (followers >= 50) followerScore += 7;
     else if (followers >= 10) followerScore += 4;
     else if (followers >= 1) followerScore += 2;
-    const ratio =
-      following > 0 ? followers / following : followers > 0 ? 5 : 0;
+    const ratio = following > 0 ? followers / following : followers > 0 ? 5 : 0;
     if (ratio >= 2) followerScore += 8;
     else if (ratio >= 1) followerScore += 6;
     else if (ratio >= 0.5) followerScore += 3;
@@ -376,7 +377,8 @@ export class AnalyzeService {
       await runCli(['.'], process.cwd(), {
         remote: repo.url,
         output: tempOutput,
-        include: 'src/**/*, package.json',
+        include:
+          'src/**/*, package.json, Dockerfile*, docker-compose*, .github/workflows/**, **/*.tf, Jenkinsfile, **/*.sh',
         exclude: 'node_modules,dist,package-lock.json,**/*md',
         quiet: true,
         style: 'plain',
@@ -484,25 +486,53 @@ export class AnalyzeService {
   private async getRelevantRepos(
     username: string,
     targetLanguages: string[],
+    targetTools: string[],
   ): Promise<Repository[]> {
     console.log(`\n🔍 Fetching repos for ${username}...`);
+
+    const toolKeywords = targetTools.map((t) => t.toLowerCase());
+    const devopsLanguageMap: Record<string, string[]> = {
+      hcl: ['terraform'],
+      dockerfile: ['docker'],
+      shell: ['bash', 'shell', 'ansible'],
+    };
 
     try {
       const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
       const repos = await octokit.rest.repos.listForUser({
         username,
         sort: 'updated',
-        per_page: 20,
+        per_page: 100,
         type: 'owner',
       });
 
       const relevantRepos = repos.data
-        .filter(
-          (repo) =>
-            !repo.fork &&
-            repo.language &&
-            targetLanguages.includes(repo.language),
-        )
+        .filter((repo) => {
+          if (repo.fork) return false;
+
+          const lang = repo.language ?? '';
+          const topics = (repo.topics ?? []).map((t) => t.toLowerCase());
+          const desc = (repo.description ?? '').toLowerCase();
+          const name = repo.name.toLowerCase();
+
+          if (targetLanguages.includes(lang)) return true;
+
+          if (toolKeywords.length > 0) {
+            const matchesTopic = toolKeywords.some(
+              (tool) =>
+                topics.some((t) => t.includes(tool)) ||
+                desc.includes(tool) ||
+                name.includes(tool),
+            );
+            if (matchesTopic) return true;
+
+            const langKey = lang.toLowerCase();
+            const toolsForLang = devopsLanguageMap[langKey] ?? [];
+            if (toolsForLang.some((t) => toolKeywords.includes(t))) return true;
+          }
+
+          return false;
+        })
         .slice(0, 20);
 
       return relevantRepos.map((repo) => ({
@@ -523,31 +553,56 @@ export class AnalyzeService {
     }
   }
 
-  private async extractRequiredLanguages(jobDescription: string) {
+  private async extractRequiredSkills(
+    jobDescription: string,
+  ): Promise<{ languages: string[]; tools: string[] }> {
     const prompt = `
-      Analyze this Job Description and and return ONLY a comma-separated list of programming languages required.
+      Analyze this Job Description and return ONLY a JSON object with two arrays.
 
       JD:
       ${jobDescription}
 
-      Infer the programming languages from specific frameworks or libraries mentioned.
-      For example,
-      - If it mentions JavaScript-based frameworks like React or Vue or Angular, infer JavaScript and TypeScript.
-      - If it mentions Django, infer Python.
-      - If it mentions Spring Boot, infer Java.
+      Rules:
+      - "languages": programming languages required. Infer from frameworks (React/Vue/Angular → JavaScript/TypeScript, Django → Python, Spring Boot → Java).
+      - "tools": DevOps, cloud, and infrastructure tools (e.g. Docker, Kubernetes, Terraform, AWS, GCP, Azure, Jenkins, Ansible, Helm, GitHub Actions, etc.).
+      - Only include what is explicitly or implicitly required.
+      - Use short names (1-3 words max per item).
 
-      Only return the languages that are explicitly or implicitly required by the JD.
+      Return ONLY this JSON with no markdown:
+      { "languages": [...], "tools": [...] }
     `;
 
-    const result = await this.model.generateContent(prompt);
+    const result = await this.model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        temperature: 0,
+      },
+    });
 
-    console.log(
-      `\n 🛠️ Extracted languages/technologies: ${result.response.text()}`,
-    );
+    console.log(`\n 🛠️ Extracted skills: ${result.response.text()}`);
 
-    return result.response
-      .text()
-      .split(',')
-      .map((s) => s.trim());
+    try {
+      const sanitized = result.response
+        .text()
+        .replace(/```json|```/g, '')
+        .trim();
+      const parsed = JSON.parse(sanitized) as {
+        languages?: string[];
+        tools?: string[];
+      };
+      return {
+        languages: (parsed.languages ?? []).map((s) => s.trim()),
+        tools: (parsed.tools ?? []).map((s) => s.trim()),
+      };
+    } catch {
+      return {
+        languages: result.response
+          .text()
+          .split(',')
+          .map((s) => s.trim()),
+        tools: [],
+      };
+    }
   }
 }
