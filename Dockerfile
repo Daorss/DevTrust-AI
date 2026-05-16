@@ -6,7 +6,7 @@ RUN npm ci
 
 COPY . .
 
-ARG VITE_API_BASE_URL
+ARG VITE_API_BASE_URL=https://devtrust-backend-579680842883.europe-west8.run.app
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build

@@ -8,8 +8,6 @@ const LINKS: { label: string; href: string }[] = [
     label: "Google Developer Groups",
     href: "https://developers.google.com/community/gdg",
   },
-  { label: "Terms", href: "#" },
-  { label: "Privacy", href: "#" },
 ];
 
 const fadeUp = {
@@ -34,7 +32,9 @@ export default function Footer() {
         <div className="space-y-md">
           <div className="flex items-center gap-base">
             <Icon name="security" className="text-primary" />
-            <span className="font-sans font-semibold text-on-surface">DevTrust AI</span>
+            <span className="font-sans font-semibold text-on-surface">
+              DevTrust AI
+            </span>
           </div>
           <p className="font-sans text-body-md text-on-surface-variant">
             © 2026 DevTrust AI. Secure Intelligence for the modern stack.
@@ -45,9 +45,15 @@ export default function Footer() {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-sm mt-sm opacity-70 hover:opacity-100 transition-opacity"
           >
-            <span className="font-mono text-label-sm text-on-surface-variant">Built at</span>
+            <span className="font-mono text-label-sm text-on-surface-variant">
+              Built at
+            </span>
             <span className="inline-flex items-center bg-white rounded px-2 py-0.5">
-              <img src={gdgLogo} alt="Google Developer Groups" className="h-4" />
+              <img
+                src={gdgLogo}
+                alt="Google Developer Groups"
+                className="h-4"
+              />
             </span>
           </a>
         </div>
