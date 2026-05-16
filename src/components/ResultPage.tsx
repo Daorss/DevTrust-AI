@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import Icon from "./Icon";
+import { saveToHistory } from "../lib/history";
 
 interface ScoreBreakdown {
   score: number;
@@ -18,7 +19,7 @@ interface JobFitResult {
   verdict: string;
 }
 
-interface AnalysisResult {
+export interface AnalysisResult {
   totalScore?: number;
   verdict?: "Legitimate" | "Suspicious" | "Likely Bot";
   aiSummary?: string;
@@ -45,6 +46,7 @@ interface AnalysisResult {
 interface ResultPageProps {
   input: string;
   jobDescription?: string;
+  cachedResult?: AnalysisResult;
   onBack: () => void;
 }
 
@@ -97,14 +99,17 @@ const stagger = {
 export default function ResultPage({
   input,
   jobDescription,
+  cachedResult,
   onBack,
 }: ResultPageProps) {
   const username = parseUsername(input);
-  const [data, setData] = useState<AnalysisResult | null>(null);
+  const [data, setData] = useState<AnalysisResult | null>(cachedResult ?? null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>("Connecting...");
 
   useEffect(() => {
+    if (cachedResult) return;
+
     const params = new URLSearchParams({ githubUsername: username });
     if (jobDescription) params.set("jobDescription", jobDescription);
 
@@ -122,14 +127,27 @@ export default function ResultPage({
       } else if (msg.type === "result") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const raw = msg as any;
-        setData({
+        const result: AnalysisResult = {
           totalScore: raw.totalScore,
           verdict: raw.verdict,
           aiSummary: raw.aiSummary,
           meta: raw.meta,
           breakdown: raw.breakdown,
           jobFit: raw.jobFit,
-        });
+        };
+        setData(result);
+        if (result.meta && result.totalScore != null && result.verdict) {
+          saveToHistory({
+            username: result.meta.username,
+            avatarUrl: result.meta.avatarUrl,
+            totalScore: result.totalScore,
+            verdict: result.verdict,
+            analyzedAt: new Date().toISOString(),
+            result,
+            input,
+            jobDescription,
+          });
+        }
         es.close();
       } else if (msg.type === "error") {
         setError(msg.message ?? "Analysis failed.");
@@ -144,7 +162,7 @@ export default function ResultPage({
 
     return () => es.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, jobDescription]);
+  }, [username, jobDescription, cachedResult]);
 
   const scorePercent = data?.totalScore != null ? Math.round((data.totalScore / 100) * 100) : 0;
   const circumference = 2 * Math.PI * 54;

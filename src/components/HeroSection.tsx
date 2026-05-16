@@ -1,9 +1,29 @@
 import { useState } from "react";
 import { motion } from "motion/react";
 import Icon from "./Icon";
+import type { HistoryEntry } from "../lib/history";
+
+const VERDICT_COLOR: Record<"Legitimate" | "Suspicious" | "Likely Bot", string> = {
+  Legitimate: "text-green-400",
+  Suspicious: "text-yellow-400",
+  "Likely Bot": "text-red-400",
+};
+
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 interface HeroSectionProps {
   onAnalyze: (url: string, jobDescription?: string) => void;
+  history: HistoryEntry[];
+  onSelectHistory: (entry: HistoryEntry) => void;
 }
 
 const container = {
@@ -20,7 +40,7 @@ const fadeUp = {
   },
 };
 
-export default function HeroSection({ onAnalyze }: HeroSectionProps) {
+export default function HeroSection({ onAnalyze, history, onSelectHistory }: HeroSectionProps) {
   const [url, setUrl] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [showJd] = useState(true);
@@ -109,6 +129,43 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
             </div>
           )}
         </motion.div>
+
+        {history.length > 0 && (
+          <motion.div variants={fadeUp} className="max-w-2xl mx-auto w-full text-left">
+            <p className="font-mono text-label-sm text-outline uppercase tracking-widest mb-sm">
+              Recently checked
+            </p>
+            <div className="flex flex-col gap-xs">
+              {history.map((entry) => (
+                <button
+                  key={entry.username}
+                  type="button"
+                  onClick={() => onSelectHistory(entry)}
+                  className="flex items-center gap-md px-md py-sm bg-surface-dim/50 backdrop-blur-sm border border-outline-variant/30 rounded-xl hover:bg-white/5 hover:border-primary/30 transition-all text-left"
+                >
+                  <img
+                    src={entry.avatarUrl}
+                    alt={entry.username}
+                    className="w-8 h-8 rounded-full flex-shrink-0 border border-outline-variant/30"
+                  />
+                  <span className="font-mono text-code-md text-on-surface flex-1">
+                    @{entry.username}
+                  </span>
+                  <span className="font-mono text-label-sm text-outline">
+                    {entry.totalScore}/100
+                  </span>
+                  <span className={`font-mono text-label-sm font-bold ${VERDICT_COLOR[entry.verdict]}`}>
+                    {entry.verdict.toUpperCase()}
+                  </span>
+                  <span className="font-mono text-label-sm text-outline/50">
+                    {timeAgo(entry.analyzedAt)}
+                  </span>
+                  <Icon name="arrow_forward" size="14px" className="text-outline/50 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         <motion.div
           variants={fadeUp}
