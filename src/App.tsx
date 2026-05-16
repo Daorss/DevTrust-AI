@@ -11,6 +11,7 @@ import WorkflowSection from "./components/WorkflowSection";
 interface AnalysisInput {
   url: string;
   jobDescription?: string;
+  cvFile?: File;
 }
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
       <ResultPage
         input={input.url}
         jobDescription={input.jobDescription}
+        cvFile={input.cvFile}
         onBack={() => setInput(null)}
       />
     );
@@ -31,7 +33,9 @@ export default function App() {
       <Navbar />
       <main className="translate-y-[-40px]">
         <HeroSection
-          onAnalyze={(url, jobDescription) => setInput({ url, jobDescription })}
+          onAnalyze={(url, jobDescription, cvFile) =>
+            setInput({ url, jobDescription, cvFile })
+          }
         />
         <SponsorBar />
         <FeaturesGrid />

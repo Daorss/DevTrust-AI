@@ -34,9 +34,30 @@ export class AnalyzeService {
     });
   }
 
+  async extractCvText(file: Express.Multer.File): Promise<string> {
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+
+    if (ext === 'pdf') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require('pdf-parse');
+      const data = await pdfParse(file.buffer);
+      return (data.text as string).trim();
+    }
+
+    if (ext === 'docx') {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer: file.buffer });
+      return (result.value as string).trim();
+    }
+
+    throw new Error(`Unsupported CV file type: .${ext}. Use PDF or DOCX.`);
+  }
+
   analyzeProfile(
     githubUsername: string,
     jobDescription: string,
+    cvText?: string,
   ): Observable<MessageResult> {
     this.progress$ = new BehaviorSubject<MessageResult>({
       data: {
@@ -45,7 +66,7 @@ export class AnalyzeService {
       },
     });
 
-    this.runAnalysingPipeline(githubUsername, jobDescription);
+    this.runAnalysingPipeline(githubUsername, jobDescription, cvText);
 
     return this.progress$.asObservable();
   }
@@ -53,6 +74,7 @@ export class AnalyzeService {
   private async runAnalysingPipeline(
     githubUsername: string,
     jobDescription: string,
+    cvText?: string,
   ) {
     try {
       // --- Trust Analysis ---
@@ -124,7 +146,7 @@ export class AnalyzeService {
           });
         } else {
           console.log(`\n Found ${relevantRepos.length} repositories.`);
-          jobFit = await this.analyzeRepos(relevantRepos, jobDescription);
+          jobFit = await this.analyzeRepos(relevantRepos, jobDescription, cvText);
         }
       }
 
@@ -348,6 +370,7 @@ export class AnalyzeService {
   private async analyzeRepos(
     repos: Repository[],
     jobDescription: string,
+    cvText?: string,
   ): Promise<JobFitResult> {
     let repoContent = '';
 
@@ -407,7 +430,7 @@ export class AnalyzeService {
 
     [JOB DESCRIPTION]
     ${jobDescription}
-
+    ${cvText ? `\n    [CANDIDATE CV/RESUME]\n    The candidate has provided a CV. Use it as supplementary context — prioritize code evidence over CV claims. Cross-reference claimed skills against actual code.\n    ${cvText}\n` : ''}
     [DEVELOPER GITHUB CONTENT]
     ${repoContent}
 

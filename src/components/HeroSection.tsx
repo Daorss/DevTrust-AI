@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import Icon from "./Icon";
 
 interface HeroSectionProps {
-  onAnalyze: (url: string, jobDescription?: string) => void;
+  onAnalyze: (url: string, jobDescription?: string, cvFile?: File) => void;
 }
 
 const container = {
@@ -24,9 +24,11 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
   const [url, setUrl] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [showJd] = useState(true);
+  const [cvFile, setCvFile] = useState<File | null>(null);
 
   function handleAnalyze() {
-    if (url.trim()) onAnalyze(url.trim(), jobDescription.trim() || undefined);
+    if (url.trim())
+      onAnalyze(url.trim(), jobDescription.trim() || undefined, cvFile ?? undefined);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -108,6 +110,64 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
               />
             </div>
           )}
+        </motion.div>
+
+        <motion.div variants={fadeUp} className="max-w-2xl mx-auto text-left">
+          <span className="font-mono text-label-sm text-outline">
+            CV / Resume{" "}
+            <span className="text-outline/50">(optional)</span>
+          </span>
+          <div className="mt-sm relative">
+            <div
+              className={`absolute -inset-px rounded-2xl blur-sm ${cvFile ? "bg-gradient-to-r from-primary/30 to-secondary/30" : "bg-gradient-to-r from-primary/10 to-secondary/10"}`}
+            />
+            <label className="relative flex items-center gap-md w-full bg-surface-dim/80 backdrop-blur-md border border-dashed border-outline-variant/40 rounded-2xl p-lg cursor-pointer hover:border-primary/40 transition-colors">
+              <Icon
+                name="upload_file"
+                className={cvFile ? "text-primary" : "text-outline"}
+                size="22px"
+              />
+              <div className="flex-1 min-w-0">
+                {cvFile ? (
+                  <>
+                    <p className="font-mono text-code-md text-on-surface truncate">
+                      {cvFile.name}
+                    </p>
+                    <p className="font-mono text-label-sm text-outline">
+                      {(cvFile.size / 1024).toFixed(0)} KB · Click to change
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-mono text-code-md text-on-surface">
+                      Upload CV or Resume
+                    </p>
+                    <p className="font-mono text-label-sm text-outline">
+                      PDF or DOCX · Enhances job fit analysis
+                    </p>
+                  </>
+                )}
+              </div>
+              {cvFile && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setCvFile(null);
+                  }}
+                  className="flex-shrink-0 text-outline hover:text-red-400 transition-colors"
+                >
+                  <Icon name="close" size="18px" />
+                </button>
+              )}
+              <input
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+          </div>
         </motion.div>
 
         <motion.div

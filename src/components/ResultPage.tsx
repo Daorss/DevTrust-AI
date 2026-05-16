@@ -45,6 +45,7 @@ interface AnalysisResult {
 interface ResultPageProps {
   input: string;
   jobDescription?: string;
+  cvFile?: File;
   onBack: () => void;
 }
 
@@ -97,6 +98,7 @@ const stagger = {
 export default function ResultPage({
   input,
   jobDescription,
+  cvFile,
   onBack,
 }: ResultPageProps) {
   const username = parseUsername(input);
@@ -105,46 +107,82 @@ export default function ResultPage({
   const [progress, setProgress] = useState<string>("Connecting...");
 
   useEffect(() => {
-    const params = new URLSearchParams({ githubUsername: username });
-    if (jobDescription) params.set("jobDescription", jobDescription);
+    let cancelled = false;
+    let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
-    const es = new EventSource(
-      `${import.meta.env.VITE_API_BASE_URL}/analyze?${params.toString()}`,
-    );
+    const startAnalysis = async () => {
+      try {
+        const formData = new FormData();
+        formData.append("githubUsername", username);
+        if (jobDescription) formData.append("jobDescription", jobDescription);
+        if (cvFile) formData.append("cvFile", cvFile);
 
-    es.onmessage = (event: MessageEvent<string>) => {
-      const msg = JSON.parse(event.data) as {
-        type: string;
-        message?: string;
-      } & Partial<AnalysisResult>;
-      if (msg.type === "info") {
-        setProgress(msg.message ?? "");
-      } else if (msg.type === "result") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = msg as any;
-        setData({
-          totalScore: raw.totalScore,
-          verdict: raw.verdict,
-          aiSummary: raw.aiSummary,
-          meta: raw.meta,
-          breakdown: raw.breakdown,
-          jobFit: raw.jobFit,
-        });
-        es.close();
-      } else if (msg.type === "error") {
-        setError(msg.message ?? "Analysis failed.");
-        es.close();
+        const response = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/analyze`,
+          { method: "POST", body: formData },
+        );
+
+        if (!response.ok || !response.body) {
+          if (!cancelled) setError("Failed to reach the analysis server.");
+          return;
+        }
+
+        reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+            try {
+              const msg = JSON.parse(dataLine.slice(5).trim()) as {
+                type: string;
+                message?: string;
+              } & Partial<AnalysisResult>;
+
+              if (msg.type === "info") {
+                setProgress(msg.message ?? "");
+              } else if (msg.type === "result") {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const raw = msg as any;
+                if (!cancelled)
+                  setData({
+                    totalScore: raw.totalScore,
+                    verdict: raw.verdict,
+                    aiSummary: raw.aiSummary,
+                    meta: raw.meta,
+                    breakdown: raw.breakdown,
+                    jobFit: raw.jobFit,
+                  });
+              } else if (msg.type === "error") {
+                if (!cancelled) setError(msg.message ?? "Analysis failed.");
+              }
+            } catch {
+              /* skip malformed SSE lines */
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) setError("Failed to reach the analysis server.");
       }
     };
 
-    es.onerror = () => {
-      if (!data) setError("Failed to reach the analysis server.");
-      es.close();
-    };
+    startAnalysis();
 
-    return () => es.close();
+    return () => {
+      cancelled = true;
+      reader?.cancel();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, jobDescription]);
+  }, [username, jobDescription, cvFile]);
 
   const scorePercent = data?.totalScore != null ? Math.round((data.totalScore / 100) * 100) : 0;
   const circumference = 2 * Math.PI * 54;
